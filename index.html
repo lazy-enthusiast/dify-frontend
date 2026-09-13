@@ -9,14 +9,24 @@
   #sidebar { width: 260px; background: #f7f7f8; border-right: 1px solid #e5e5e5; display: flex; flex-direction: column; padding: 12px; }
   #newChatBtn { padding: 10px; border: 1px solid #ddd; border-radius: 8px; background: white; cursor: pointer; margin-bottom: 12px; font-size: 14px; }
   #convList { overflow-y: auto; flex: 1; }
-  .convItem { padding: 10px; border-radius: 8px; cursor: pointer; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
+  .convItem { position: relative; display: flex; align-items: center; padding: 10px; border-radius: 8px; cursor: pointer; font-size: 14px; margin-bottom: 4px; }
   .convItem:hover { background: #ececec; }
   .convItem.active { background: #e3e3e3; }
+  .convTitle { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .moreBtn { padding: 4px 8px; border-radius: 6px; cursor: pointer; color: #666; }
+  .moreBtn:hover { background: #ddd; }
+  .menu { position: absolute; right: 8px; top: 36px; background: white; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 10; overflow: hidden; }
+  .menu div { padding: 8px 16px; font-size: 13px; cursor: pointer; white-space: nowrap; }
+  .menu div:hover { background: #f2f2f2; }
   #main { flex: 1; display: flex; flex-direction: column; }
+  #topbar { padding: 10px 16px; border-bottom: 1px solid #e5e5e5; display: flex; align-items: center; gap: 8px; }
+  #topbar label { font-size: 13px; color: #666; }
+  #modelSelect { padding: 6px 10px; border-radius: 6px; border: 1px solid #ddd; font-size: 13px; }
   #messages { flex: 1; overflow-y: auto; padding: 24px; }
   .msg { max-width: 70%; margin-bottom: 16px; padding: 10px 14px; border-radius: 12px; line-height: 1.5; white-space: pre-wrap; }
   .msg.user { background: #2563eb; color: white; margin-left: auto; }
   .msg.bot { background: #f1f1f1; color: #222; margin-right: auto; }
+  .msg.error { background: #fde2e2; color: #b42318; margin-right: auto; }
   #inputBar { display: flex; padding: 16px; border-top: 1px solid #e5e5e5; gap: 8px; }
   #inputBox { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #ddd; font-size: 14px; resize: none; }
   #sendBtn { padding: 0 20px; border: none; border-radius: 8px; background: #2563eb; color: white; cursor: pointer; }
@@ -25,55 +35,124 @@
 <body>
 
 <div id="sidebar">
-  <button id="newChatBtn" onclick="newConversation()">+ 新对话</button>
+  <button id="newChatBtn" onclick="newConversation()">+ 新對話</button>
   <div id="convList"></div>
 </div>
 
 <div id="main">
+  <div id="topbar">
+    <label for="modelSelect">AI 模型：</label>
+    <select id="modelSelect" onchange="changeModel()">
+      <option value="Sonnet-5">Sonnet-5</option>
+      <option value="4o">4o</option>
+      <option value="o3-mini">o3-mini</option>
+    </select>
+  </div>
   <div id="messages"></div>
   <div id="inputBar">
-    <textarea id="inputBox" rows="1" placeholder="输入你的问题..."></textarea>
+    <textarea id="inputBox" rows="1" placeholder="輸入你的問題..."></textarea>
     <button id="sendBtn" onclick="sendMessage()">送出</button>
   </div>
 </div>
 
+<!-- 這裡換成你的 Cloudflare Worker 網址 -->
 <script>
-let activeId = new URLSearchParams(location.search).get('c');
+const WORKER_URL = 'https://dify-proxy.你的子網域.workers.dev';
 
-async function loadSidebar() {
-  const res = await fetch('/api/conversations');
-  const list = await res.json();
-  const box = document.getElementById('convList');
-  box.innerHTML = '';
-  list.forEach(c => {
-    const div = document.createElement('div');
-    div.className = 'convItem' + (String(c.id) === String(activeId) ? ' active' : '');
-    div.textContent = c.title;
-    div.onclick = () => switchConversation(c.id);
-    box.appendChild(div);
+let conversations = JSON.parse(localStorage.getItem('conversations') || '[]');
+let activeId = null;
+let openMenuId = null;
+
+function saveConversations() {
+  localStorage.setItem('conversations', JSON.stringify(conversations));
+}
+
+function getActiveConv() {
+  return conversations.find(c => c.id === activeId);
+}
+
+function newConversation() {
+  const conv = {
+    id: Date.now().toString(),
+    title: '新對話',
+    model: 'Sonnet-5',
+    conversationId: '',
+    messages: []
+  };
+  conversations.unshift(conv);
+  activeId = conv.id;
+  saveConversations();
+  renderSidebar();
+  renderMessages();
+}
+
+function changeModel() {
+  const conv = getActiveConv();
+  if (!conv) return;
+  conv.model = document.getElementById('modelSelect').value;
+  saveConversations();
+}
+
+function renderSidebar() {
+  const list = document.getElementById('convList');
+  list.innerHTML = '';
+  conversations.forEach(c => {
+    const item = document.createElement('div');
+    item.className = 'convItem' + (c.id === activeId ? ' active' : '');
+
+    const title = document.createElement('div');
+    title.className = 'convTitle';
+    title.textContent = c.title;
+    title.onclick = () => { activeId = c.id; openMenuId = null; renderSidebar(); renderMessages(); };
+    item.appendChild(title);
+
+    const moreBtn = document.createElement('div');
+    moreBtn.className = 'moreBtn';
+    moreBtn.textContent = '⋯';
+    moreBtn.onclick = (e) => { e.stopPropagation(); openMenuId = (openMenuId === c.id ? null : c.id); renderSidebar(); };
+    item.appendChild(moreBtn);
+
+    if (openMenuId === c.id) {
+      const menu = document.createElement('div');
+      menu.className = 'menu';
+      const renameOpt = document.createElement('div');
+      renameOpt.textContent = '重新命名';
+      renameOpt.onclick = (e) => {
+        e.stopPropagation();
+        const newTitle = prompt('新的對話名稱：', c.title);
+        openMenuId = null;
+        if (newTitle && newTitle.trim()) { c.title = newTitle.trim(); saveConversations(); }
+        renderSidebar();
+      };
+      const delOpt = document.createElement('div');
+      delOpt.textContent = '刪除對話';
+      delOpt.onclick = (e) => {
+        e.stopPropagation();
+        openMenuId = null;
+        if (confirm('確定要刪除這個對話嗎？')) {
+          conversations = conversations.filter(x => x.id !== c.id);
+          if (activeId === c.id) { activeId = conversations[0]?.id || null; }
+          saveConversations();
+          renderSidebar();
+          renderMessages();
+        } else { renderSidebar(); }
+      };
+      menu.appendChild(renameOpt);
+      menu.appendChild(delOpt);
+      item.appendChild(menu);
+    }
+
+    list.appendChild(item);
   });
 }
 
-function switchConversation(id) {
-  activeId = id;
-  history.replaceState(null, '', `?c=${id}`);
-  loadSidebar();
-  loadMessages();
-}
-
-async function newConversation() {
-  const res = await fetch('/api/conversations', { method: 'POST' });
-  const conv = await res.json();
-  switchConversation(conv.id);
-}
-
-async function loadMessages() {
+function renderMessages() {
   const box = document.getElementById('messages');
   box.innerHTML = '';
-  if (!activeId) return;
-  const res = await fetch(`/api/conversations/${activeId}/messages`);
-  const msgs = await res.json();
-  msgs.forEach(m => {
+  const conv = getActiveConv();
+  if (!conv) return;
+  document.getElementById('modelSelect').value = conv.model || 'Sonnet-5';
+  conv.messages.forEach(m => {
     const div = document.createElement('div');
     div.className = 'msg ' + m.role;
     div.textContent = m.text;
@@ -86,38 +165,52 @@ async function sendMessage() {
   const input = document.getElementById('inputBox');
   const text = input.value.trim();
   if (!text) return;
-  if (!activeId) await newConversation();
+  let conv = getActiveConv();
+  if (!conv) { newConversation(); conv = getActiveConv(); }
+
+  conv.messages.push({ role: 'user', text });
+  if (conv.messages.length === 1) conv.title = text.slice(0, 20);
   input.value = '';
+  renderSidebar();
+  renderMessages();
 
-  const box = document.getElementById('messages');
-  const userDiv = document.createElement('div');
-  userDiv.className = 'msg user';
-  userDiv.textContent = text;
-  box.appendChild(userDiv);
-  const botDiv = document.createElement('div');
-  botDiv.className = 'msg bot';
-  botDiv.textContent = '思考中...';
-  box.appendChild(botDiv);
-  box.scrollTop = box.scrollHeight;
+  conv.messages.push({ role: 'bot', text: '思考中...' });
+  renderMessages();
 
- const res = await fetch('https://proud-water.davchan-clp.workers.dev', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ conversation_id: activeId, text })
-  });
-  const data = await res.json();
-  botDiv.textContent = data.reply || JSON.stringify(data);
-  loadSidebar();
+  try {
+    const res = await fetch(WORKER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        inputs: { model_role: conv.model || 'Sonnet-5' },
+        query: text,
+        conversation_id: conv.conversationId || '',
+        user: 'web-user'
+      })
+    });
+    const data = await res.json();
+
+    if (data.conversation_id) conv.conversationId = data.conversation_id;
+
+    if (data.answer) {
+      conv.messages[conv.messages.length - 1] = { role: 'bot', text: data.answer };
+    } else {
+      conv.messages[conv.messages.length - 1] = { role: 'error', text: '發生錯誤：' + JSON.stringify(data) };
+    }
+  } catch (err) {
+    conv.messages[conv.messages.length - 1] = { role: 'error', text: '連線失敗：' + err.message };
+  }
+
+  saveConversations();
+  renderMessages();
 }
 
 document.getElementById('inputBox').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
 });
 
-(async () => {
-  if (!activeId) await newConversation();
-  else { loadSidebar(); loadMessages(); }
-})();
+if (conversations.length === 0) newConversation();
+else { activeId = conversations[0].id; renderSidebar(); renderMessages(); }
 </script>
 </body>
 </html>
