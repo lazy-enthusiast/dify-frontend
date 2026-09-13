@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>My Dify App</title></head>
+<body style="font-family:sans-serif;max-width:600px;margin:40px auto;">
+  <h2>My Dify Workflow</h2>
+  <textarea id="input" rows="4" style="width:100%" placeholder="输入你的问题"></textarea>
+  <button onclick="run()">送出</button>
+  <pre id="output" style="white-space:pre-wrap;background:#f4f4f4;padding:10px;"></pre>
+  <script>
+    async function run() {
+      document.getElementById('output').textContent = '执行中...';
+      const res = await fetch('/api/run', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ inputs: { query: document.getElementById('input').value } })
+      });
+      const data = await res.json();
+      document.getElementById('output').textContent = JSON.stringify(data, null, 2);
+    }
+  </script>
+</body>
+</html>
