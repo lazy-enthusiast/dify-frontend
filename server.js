@@ -1,70 +1,61 @@
 const express = require('express');
 const path = require('path');
-const { Pool } = require('pg');
+const Database = require('better-sqlite3');
 
 const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+const dbPath = process.env.DB_PATH || '/data/db.sqlite';
+const db = new Database(dbPath);
 
-async function initDb() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS conversations (
-      id SERIAL PRIMARY KEY,
-      title TEXT DEFAULT '新对话',
-      created_at TIMESTAMP DEFAULT now()
-    );
-  `);
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS messages (
-      id SERIAL PRIMARY KEY,
-      conversation_id INTEGER REFERENCES conversations(id),
-      role TEXT,
-      text TEXT,
-      created_at TIMESTAMP DEFAULT now()
-    );
-  `);
-}
-initDb();
-
-app.post('/api/conversations', async (req, res) => {
-  const r = await pool.query('INSERT INTO conversations DEFAULT VALUES RETURNING *');
-  res.json(r.rows[0]);
-});
-
-app.get('/api/conversations', async (req, res) => {
-  const r = await pool.query('SELECT * FROM conversations ORDER BY id DESC');
-  res.json(r.rows);
-});
-
-app.get('/api/conversations/:id/messages', async (req, res) => {
-  const r = await pool.query(
-    'SELECT * FROM messages WHERE conversation_id = $1 ORDER BY id ASC',
-    [req.params.id]
+db.exec(`
+  CREATE TABLE IF NOT EXISTS conversations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT DEFAULT '新对话',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
-  res.json(r.rows);
+  CREATE TABLE IF NOT EXISTS messages (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_id INTEGER,
+    role TEXT,
+    text TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+`);
+
+app.post('/api/conversations', (req, res) => {
+  const r = db.prepare('INSERT INTO conversations DEFAULT VALUES').run();
+  const conv = db.prepare('SELECT * FROM conversations WHERE id = ?').get(r.lastInsertRowid);
+  res.json(conv);
+});
+
+app.get('/api/conversations', (req, res) => {
+  res.json(db.prepare('SELECT * FROM conversations ORDER BY id DESC').all());
+});
+
+app.get('/api/conversations/:id/messages', (req, res) => {
+  res.json(
+    db.prepare('SELECT * FROM messages WHERE conversation_id = ? ORDER BY id ASC').all(req.params.id)
+  );
 });
 
 app.post('/api/run', async (req, res) => {
   const { conversation_id, text } = req.body;
   try {
-    await pool.query(
-      'INSERT INTO messages (conversation_id, role, text) VALUES ($1, $2, $3)',
-      [conversation_id, 'user', text]
-    );
+    db.prepare('INSERT INTO messages (conversation_id, role, text) VALUES (?, ?, ?)')
+      .run(conversation_id, 'user', text);
 
-    // set conversation title from first message
-    const countR = await pool.query('SELECT COUNT(*) FROM messages WHERE conversation_id = $1', [conversation_id]);
-    if (countR.rows[0].count == 1) {
-      await pool.query('UPDATE conversations SET title = $1 WHERE id = $2', [text.slice(0, 20), conversation_id]);
+    const count = db.prepare('SELECT COUNT(*) AS c FROM messages WHERE conversation_id = ?')
+      .get(conversation_id).c;
+    if (count === 1) {
+      db.prepare('UPDATE conversations SET title = ? WHERE id = ?')
+        .run(text.slice(0, 20), conversation_id);
     }
 
-    const histR = await pool.query(
-      'SELECT role, text FROM messages WHERE conversation_id = $1 ORDER BY id ASC',
-      [conversation_id]
-    );
-    const history = histR.rows.map(m => `${m.role === 'user' ? '使用者' : 'AI'}: ${m.text}`).join('\n');
+    const hist = db.prepare('SELECT role, text FROM messages WHERE conversation_id = ? ORDER BY id ASC')
+      .all(conversation_id);
+    const history = hist.map(m => `${m.role === 'user' ? '使用者' : 'AI'}: ${m.text}`).join('\n');
 
     const r = await fetch('https://api.dify.ai/v1/workflows/run', {
       method: 'POST',
@@ -81,10 +72,8 @@ app.post('/api/run', async (req, res) => {
     const data = await r.json();
     const reply = data?.data?.outputs?.answer || data?.data?.outputs?.text || JSON.stringify(data);
 
-    await pool.query(
-      'INSERT INTO messages (conversation_id, role, text) VALUES ($1, $2, $3)',
-      [conversation_id, 'bot', reply]
-    );
+    db.prepare('INSERT INTO messages (conversation_id, role, text) VALUES (?, ?, ?)')
+      .run(conversation_id, 'bot', reply);
 
     res.json({ reply });
   } catch (err) {
