@@ -1,22 +1,123 @@
 <!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"><title>My Dify App</title></head>
-<body style="font-family:sans-serif;max-width:600px;margin:40px auto;">
-  <h2>My Dify Workflow</h2>
-  <textarea id="input" rows="4" style="width:100%" placeholder="输入你的问题"></textarea>
-  <button onclick="run()">送出</button>
-  <pre id="output" style="white-space:pre-wrap;background:#f4f4f4;padding:10px;"></pre>
-  <script>
-    async function run() {
-      document.getElementById('output').textContent = '执行中...';
-      const res = await fetch('/api/run', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ inputs: { query: document.getElementById('input').value } })
-      });
-      const data = await res.json();
-      document.getElementById('output').textContent = JSON.stringify(data, null, 2);
-    }
-  </script>
+<head>
+<meta charset="UTF-8">
+<title>My Dify App</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, sans-serif; display: flex; height: 100vh; }
+  #sidebar { width: 260px; background: #f7f7f8; border-right: 1px solid #e5e5e5; display: flex; flex-direction: column; padding: 12px; }
+  #newChatBtn { padding: 10px; border: 1px solid #ddd; border-radius: 8px; background: white; cursor: pointer; margin-bottom: 12px; font-size: 14px; }
+  #convList { overflow-y: auto; flex: 1; }
+  .convItem { padding: 10px; border-radius: 8px; cursor: pointer; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
+  .convItem:hover { background: #ececec; }
+  .convItem.active { background: #e3e3e3; }
+  #main { flex: 1; display: flex; flex-direction: column; }
+  #messages { flex: 1; overflow-y: auto; padding: 24px; }
+  .msg { max-width: 70%; margin-bottom: 16px; padding: 10px 14px; border-radius: 12px; line-height: 1.5; white-space: pre-wrap; }
+  .msg.user { background: #2563eb; color: white; margin-left: auto; }
+  .msg.bot { background: #f1f1f1; color: #222; margin-right: auto; }
+  #inputBar { display: flex; padding: 16px; border-top: 1px solid #e5e5e5; gap: 8px; }
+  #inputBox { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #ddd; font-size: 14px; resize: none; }
+  #sendBtn { padding: 0 20px; border: none; border-radius: 8px; background: #2563eb; color: white; cursor: pointer; }
+</style>
+</head>
+<body>
+
+<div id="sidebar">
+  <button id="newChatBtn" onclick="newConversation()">+ 新对话</button>
+  <div id="convList"></div>
+</div>
+
+<div id="main">
+  <div id="messages"></div>
+  <div id="inputBar">
+    <textarea id="inputBox" rows="1" placeholder="输入你的问题..."></textarea>
+    <button id="sendBtn" onclick="sendMessage()">送出</button>
+  </div>
+</div>
+
+<script>
+let activeId = new URLSearchParams(location.search).get('c');
+
+async function loadSidebar() {
+  const res = await fetch('/api/conversations');
+  const list = await res.json();
+  const box = document.getElementById('convList');
+  box.innerHTML = '';
+  list.forEach(c => {
+    const div = document.createElement('div');
+    div.className = 'convItem' + (String(c.id) === String(activeId) ? ' active' : '');
+    div.textContent = c.title;
+    div.onclick = () => switchConversation(c.id);
+    box.appendChild(div);
+  });
+}
+
+function switchConversation(id) {
+  activeId = id;
+  history.replaceState(null, '', `?c=${id}`);
+  loadSidebar();
+  loadMessages();
+}
+
+async function newConversation() {
+  const res = await fetch('/api/conversations', { method: 'POST' });
+  const conv = await res.json();
+  switchConversation(conv.id);
+}
+
+async function loadMessages() {
+  const box = document.getElementById('messages');
+  box.innerHTML = '';
+  if (!activeId) return;
+  const res = await fetch(`/api/conversations/${activeId}/messages`);
+  const msgs = await res.json();
+  msgs.forEach(m => {
+    const div = document.createElement('div');
+    div.className = 'msg ' + m.role;
+    div.textContent = m.text;
+    box.appendChild(div);
+  });
+  box.scrollTop = box.scrollHeight;
+}
+
+async function sendMessage() {
+  const input = document.getElementById('inputBox');
+  const text = input.value.trim();
+  if (!text) return;
+  if (!activeId) await newConversation();
+  input.value = '';
+
+  const box = document.getElementById('messages');
+  const userDiv = document.createElement('div');
+  userDiv.className = 'msg user';
+  userDiv.textContent = text;
+  box.appendChild(userDiv);
+  const botDiv = document.createElement('div');
+  botDiv.className = 'msg bot';
+  botDiv.textContent = '思考中...';
+  box.appendChild(botDiv);
+  box.scrollTop = box.scrollHeight;
+
+  const res = await fetch('/api/run', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ conversation_id: activeId, text })
+  });
+  const data = await res.json();
+  botDiv.textContent = data.reply || JSON.stringify(data);
+  loadSidebar();
+}
+
+document.getElementById('inputBox').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+(async () => {
+  if (!activeId) await newConversation();
+  else { loadSidebar(); loadMessages(); }
+})();
+</script>
 </body>
 </html>
