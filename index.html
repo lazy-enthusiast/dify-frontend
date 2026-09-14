@@ -1,6 +1,3 @@
-260914-1125
-txt
-Fish Kingkong 分享了這個檔案。想執行更多操作？
 <!DOCTYPE html>
 <html>
 <head>
@@ -36,12 +33,14 @@ Fish Kingkong 分享了這個檔案。想執行更多操作？
 </style>
 </head>
 <body>
-﻿
+
+
 <div id="sidebar">
   <button id="newChatBtn" onclick="newConversation()">+ 新對話</button>
   <div id="convList"></div>
 </div>
-﻿
+
+
 <div id="main">
   <div id="topbar">
     <label for="modelSelect">AI 模型：</label>
@@ -57,5 +56,186 @@ Fish Kingkong 分享了這個檔案。想執行更多操作？
     <button id="sendBtn" onclick="sendMessage()">送出</button>
   </div>
 </div>
-﻿
 
+
+<script>
+// ⚠️ 換成你自己的 Vercel 網址（去 Vercel 專案頁面最上方複製，格式類似 https://dify-frontend-xxxx.vercel.app）
+// 後面一定要接 /api/chat
+const WORKER_URL = 'https://你的專案名稱.vercel.app/api/chat';
+
+
+let conversations = JSON.parse(localStorage.getItem('conversations') || '[]');
+let activeId = null;
+let openMenuId = null;
+
+
+function saveConversations() {
+  localStorage.setItem('conversations', JSON.stringify(conversations));
+}
+
+
+function getActiveConv() {
+  return conversations.find(c => c.id === activeId);
+}
+
+
+function newConversation() {
+  const conv = {
+    id: Date.now().toString(),
+    title: '新對話',
+    model: 'Sonnet-5',
+    historySummary: '',
+    lastAiResponse: '',
+    messages: []
+  };
+  conversations.unshift(conv);
+  activeId = conv.id;
+  openMenuId = null;
+  saveConversations();
+  renderSidebar();
+  renderMessages();
+}
+
+
+function changeModel() {
+  const conv = getActiveConv();
+  if (!conv) return;
+  conv.model = document.getElementById('modelSelect').value;
+  saveConversations();
+}
+
+
+function renderSidebar() {
+  const list = document.getElementById('convList');
+  list.innerHTML = '';
+  conversations.forEach(c => {
+    const item = document.createElement('div');
+    item.className = 'convItem' + (c.id === activeId ? ' active' : '');
+
+
+    const title = document.createElement('div');
+    title.className = 'convTitle';
+    title.textContent = c.title;
+    title.onclick = () => { activeId = c.id; openMenuId = null; renderSidebar(); renderMessages(); };
+    item.appendChild(title);
+
+
+    const moreBtn = document.createElement('div');
+    moreBtn.className = 'moreBtn';
+    moreBtn.textContent = '⋯';
+    moreBtn.onclick = (e) => { e.stopPropagation(); openMenuId = (openMenuId === c.id ? null : c.id); renderSidebar(); };
+    item.appendChild(moreBtn);
+
+
+    if (openMenuId === c.id) {
+      const menu = document.createElement('div');
+      menu.className = 'menu';
+      const renameOpt = document.createElement('div');
+      renameOpt.textContent = '重新命名';
+      renameOpt.onclick = (e) => {
+        e.stopPropagation();
+        const newTitle = prompt('新的對話名稱：', c.title);
+        openMenuId = null;
+        if (newTitle && newTitle.trim()) { c.title = newTitle.trim(); saveConversations(); }
+        renderSidebar();
+      };
+      const delOpt = document.createElement('div');
+      delOpt.textContent = '刪除對話';
+      delOpt.onclick = (e) => {
+        e.stopPropagation();
+        openMenuId = null;
+        if (confirm('確定要刪除這個對話嗎？')) {
+          conversations = conversations.filter(x => x.id !== c.id);
+          if (activeId === c.id) { activeId = conversations[0]?.id || null; }
+          saveConversations();
+          renderSidebar();
+          renderMessages();
+        } else { renderSidebar(); }
+      };
+      menu.appendChild(renameOpt);
+      menu.appendChild(delOpt);
+      item.appendChild(menu);
+    }
+
+
+    list.appendChild(item);
+  });
+}
+
+
+function renderMessages() {
+  const box = document.getElementById('messages');
+  box.innerHTML = '';
+  const conv = getActiveConv();
+  if (!conv) return;
+  document.getElementById('modelSelect').value = conv.model || 'Sonnet-5';
+  conv.messages.forEach(m => {
+    const div = document.createElement('div');
+    div.className = 'msg ' + m.role;
+    div.textContent = m.text;
+    box.appendChild(div);
+  });
+  box.scrollTop = box.scrollHeight;
+}
+
+
+async function sendMessage() {
+  const input = document.getElementById('inputBox');
+  const text = input.value.trim();
+  if (!text) return;
+  let conv = getActiveConv();
+  if (!conv) { newConversation(); conv = getActiveConv(); }
+
+
+  conv.messages.push({ role: 'user', text });
+  if (conv.messages.length === 1) conv.title = text.slice(0, 20);
+  input.value = '';
+  renderSidebar();
+  renderMessages();
+
+
+  conv.messages.push({ role: 'bot', text: '思考中...' });
+  renderMessages();
+
+
+  try {
+    const res = await fetch(WORKER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: text,
+        historySummary: conv.historySummary,
+        lastAiResponse: conv.lastAiResponse,
+        model: conv.model
+      })
+    });
+    const data = await res.json();
+
+
+    if (data.answer) {
+      conv.messages[conv.messages.length - 1] = { role: 'bot', text: data.answer };
+      conv.historySummary = data.historySummary || conv.historySummary;
+      conv.lastAiResponse = data.answer;
+    } else {
+      conv.messages[conv.messages.length - 1] = { role: 'error', text: '發生錯誤：' + JSON.stringify(data) };
+    }
+  } catch (err) {
+    conv.messages[conv.messages.length - 1] = { role: 'error', text: '連線失敗：' + err.message };
+  }
+
+
+  saveConversations();
+  renderMessages();
+}
+
+
+document.getElementById('inputBox').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+
+if (conversations.length === 0) newConversation();
+else { activeId = conversations[0].id; renderSidebar(); renderMessages(); }
+</script>
+</body>
+</html>
