@@ -123,7 +123,7 @@ function newConversation() {
   const conv = {
     id: Date.now().toString(),
     title: '新對話',
-    model: 'Sonnet-5',
+    model: 'auto',// 👈 改為 auto 作為新對話預設
     historySummary: '',
     lastAiResponse: '',
     lastQuery: '',
@@ -225,7 +225,22 @@ function copyText(text, btn) {
 }
 
 function buildMessageEl(m, conv) {
-  const wrap = document.createElement('div');
+  
+const meta = document.createElement('div');
+meta.className = 'msgMeta';
+
+const time = document.createElement('span');
+time.textContent = formatTime(m.time);
+meta.appendChild(time);
+
+// 💡 新增：若此訊息包含使用的模型資訊，顯示在時間旁邊
+if (m.usedModel) {
+  const modelTag = document.createElement('span');
+  modelTag.style.opacity = '0.8';
+  modelTag.textContent = `• 🤖 ${m.usedModel}`;
+  meta.appendChild(modelTag);
+}
+ const wrap = document.createElement('div');
   wrap.className = 'msgWrap ' + m.role;
 
   const content = document.createElement('div');
@@ -271,7 +286,7 @@ function renderMessages() {
   box.innerHTML = '';
   const conv = getActiveConv();
   if (!conv) return;
-  document.getElementById('modelSelect').value = conv.model || 'Sonnet-5';
+  document.getElementById('modelSelect').value = conv.model || 'auto';// 👈 預設回退改為 auto
   conv.messages.forEach(m => box.appendChild(buildMessageEl(m, conv)));
   box.scrollTop = box.scrollHeight;
 }
@@ -339,6 +354,7 @@ async function sendMessage(overrideText) {
 
     if (data.answer) {
       botMsg.text = data.answer;
+     if (data.usedModel) botMsg.usedModel = data.usedModel; // 👈 儲存實際調用的模型
       conv.historySummary = data.historySummary || conv.historySummary;
       conv.lastAiResponse = data.answer;
       typewriterInto(lastContentEl, data.answer, () => {
