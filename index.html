@@ -60,6 +60,7 @@
 
 <script>
 const WORKER_URL = 'https://proud-water.davchan-clp.workers.dev';
+const NAME = 'superfancyriceballs';
 
 
 let conversations = JSON.parse(localStorage.getItem('conversations') || '[]');
@@ -199,7 +200,10 @@ async function sendMessage() {
   try {
     const res = await fetch(WORKER_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-App-Auth': NAME // 🔒 帶上名字
+      },
       body: JSON.stringify({
         query: text,
         historySummary: conv.historySummary,
