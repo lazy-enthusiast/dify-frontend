@@ -225,22 +225,7 @@ function copyText(text, btn) {
 }
 
 function buildMessageEl(m, conv) {
-  
-const meta = document.createElement('div');
-meta.className = 'msgMeta';
-
-const time = document.createElement('span');
-time.textContent = formatTime(m.time);
-meta.appendChild(time);
-
-// 💡 新增：若此訊息包含使用的模型資訊，顯示在時間旁邊
-if (m.usedModel) {
-  const modelTag = document.createElement('span');
-  modelTag.style.opacity = '0.8';
-  modelTag.textContent = `• 🤖 ${m.usedModel}`;
-  meta.appendChild(modelTag);
-}
- const wrap = document.createElement('div');
+  const wrap = document.createElement('div');
   wrap.className = 'msgWrap ' + m.role;
 
   const content = document.createElement('div');
@@ -252,13 +237,24 @@ if (m.usedModel) {
   }
   wrap.appendChild(content);
 
+  // 1. 建立底部元數據區塊
   const meta = document.createElement('div');
   meta.className = 'msgMeta';
 
+  // 2. 顯示時間
   const time = document.createElement('span');
   time.textContent = formatTime(m.time);
   meta.appendChild(time);
 
+  // 3. 若有調用的模型名稱，顯示在時間旁邊
+  if (m.usedModel) {
+    const modelTag = document.createElement('span');
+    modelTag.style.opacity = '0.8';
+    modelTag.textContent = `• 🤖 ${m.usedModel}`;
+    meta.appendChild(modelTag);
+  }
+
+  // 4. 複製按鈕
   if (m.role !== 'error') {
     const copyBtn = document.createElement('button');
     copyBtn.textContent = '⧉ 複製';
@@ -266,6 +262,7 @@ if (m.usedModel) {
     meta.appendChild(copyBtn);
   }
 
+  // 5. 重新送出按鈕
   if (m.role === 'error') {
     const retryBtn = document.createElement('button');
     retryBtn.textContent = '↻ 重新送出';
