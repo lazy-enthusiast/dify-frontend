@@ -378,7 +378,7 @@ async function fetchAutoTitle(conv, userQuery, aiAnswer) {
       body: JSON.stringify({
         action: 'generateTitle',
         query: userQuery,
-        answer: lastAiResponse
+        answer: aiAnswer
       })
     });
     const data = await res.json();
