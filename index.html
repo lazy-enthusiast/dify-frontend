@@ -369,6 +369,7 @@ function typewriterInto(contentEl, fullText, onDone) {
 // 💡 背景非同步請求 AI 自動生成 3~5 字標題
 async function fetchAutoTitle(conv, userQuery, aiAnswer) {
   try {
+    console.log('🚀 開始請求生成標題...', { userQuery, aiAnswer });
     const res = await fetch(WORKER_URL, {
       method: 'POST',
       headers: {
@@ -382,13 +383,15 @@ async function fetchAutoTitle(conv, userQuery, aiAnswer) {
       })
     });
     const data = await res.json();
+    console.log('📦 Worker 回傳標題結果:', data);
+
     if (data.title) {
       conv.title = data.title;
       saveConversations();
       renderSidebar();
     }
   } catch (e) {
-    console.log('標題生成跳過:', e);
+    console.error('❌ 標題生成失敗/跳過:', e);
   }
 }
 
