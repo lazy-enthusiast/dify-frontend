@@ -102,6 +102,9 @@
   </div>
   <div id="messages"></div>
   <div id="inputBar">
+    <!-- 💡 隱藏的檔案選擇器與上傳按鈕 -->
+    <input type="file" id="fileInput" style="display:none;" onchange="handleFileUpload(event)">
+    <button id="uploadBtn" onclick="document.getElementById('fileInput').click()" title="上傳檔案">📎</button>
     <textarea id="inputBox" rows="1" placeholder="輸入你的問題..."></textarea>
     <button id="sendBtn" onclick="sendMessage()">送出</button>
   </div>
