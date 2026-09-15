@@ -75,7 +75,20 @@
   .msgMeta button { border: none; background: none; cursor: pointer; color: var(--text-light); font-size: 12px; padding: 2px 4px; border-radius: 4px; }
   .msgMeta button:hover { background: var(--hover); color: var(--text); }
   #inputBar { display: flex; padding: 16px; border-top: 1px solid var(--border); gap: 8px; }
-  #inputBox { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--input-border); background: var(--bg); color: var(--text); font-size: 14px; resize: none; max-height: 160px; overflow-y: auto; font-family: inherit; }
+  #uploadBtn {
+    padding: 0 12px;
+    border: 1px solid var(--input-border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #uploadBtn:hover { background: var(--hover); }
+ #inputBox { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--input-border); background: var(--bg); color: var(--text); font-size: 14px; resize: none; max-height: 160px; overflow-y: auto; font-family: inherit; }
   #sendBtn { padding: 0 20px; border: none; border-radius: 8px; background: var(--accent); color: white; cursor: pointer; }
 </style>
 </head>
