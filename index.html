@@ -75,29 +75,29 @@
   .msgMeta button { border: none; background: none; cursor: pointer; color: var(--text-light); font-size: 12px; padding: 2px 4px; border-radius: 4px; }
   .msgMeta button:hover { background: var(--hover); color: var(--text); }
   #inputBar { 
-    display: flex; 
-    align-items: center; /* 強制所有元件垂直居中 */
-    padding: 16px; 
-    border-top: 1px solid var(--border); 
-    gap: 8px; 
-  }
-  #uploadBtn { 
-    width: 42px !important; 
-    height: 42px !important; 
-    min-width: 42px !important; /* 避免被 flex 擠壓到寬度變 0 */
-    padding: 0; 
-    border: 1px solid var(--input-border); 
-    border-radius: 8px; 
-    background: var(--bg); 
-    color: var(--text); 
-    cursor: pointer; 
-    font-size: 18px; 
-    display: flex !important; 
-    align-items: center; 
-    justify-content: center; 
-    flex-shrink: 0; 
-  }
-  #uploadBtn:hover { background: var(--hover); }
+  display: flex !important; 
+  align-items: center !important; 
+  padding: 16px; 
+  border-top: 1px solid var(--border); 
+  gap: 8px; 
+}
+#uploadBtn { 
+  width: 42px !important; 
+  height: 42px !important; 
+  min-width: 42px !important; 
+  padding: 0; 
+  border: 1px solid var(--input-border); 
+  border-radius: 8px; 
+  background: var(--bg); 
+  color: var(--text); 
+  cursor: pointer; 
+  font-size: 18px; 
+  display: flex !important; 
+  align-items: center; 
+  justify-content: center; 
+  flex-shrink: 0 !important; 
+}
+#uploadBtn:hover { background: var(--hover); }
  #inputBox { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--input-border); background: var(--bg); color: var(--text); font-size: 14px; resize: none; max-height: 160px; overflow-y: auto; font-family: inherit; }
   #sendBtn { padding: 0 20px; border: none; border-radius: 8px; background: var(--accent); color: white; cursor: pointer; }
 </style>
@@ -125,11 +125,11 @@
   </div>
   <div id="messages"></div>
 <div id="inputBar">
-    <input type="file" id="fileInput" style="display: none !important;" onchange="handleFileUpload(event)">
-    <button type="button" id="uploadBtn" onclick="document.getElementById('fileInput').click()" title="上傳檔案">📎</button>
-    <textarea id="inputBox" rows="1" placeholder="輸入你的問題..."></textarea>
-    <button type="button" id="sendBtn" onclick="sendMessage()">送出</button>
-  </div>
+  <input type="file" id="fileInput" style="display: none !important;" onchange="handleFileUpload(event)">
+  <button type="button" id="uploadBtn" onclick="document.getElementById('fileInput').click()" title="上傳檔案">📎</button>
+  <textarea id="inputBox" rows="1" placeholder="輸入你的問題..."></textarea>
+  <button type="button" id="sendBtn" onclick="sendMessage()">送出</button>
+</div>
 </div>
 
 <script>
