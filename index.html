@@ -74,10 +74,17 @@
   .msgMeta { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 11px; color: var(--text-light); }
   .msgMeta button { border: none; background: none; cursor: pointer; color: var(--text-light); font-size: 12px; padding: 2px 4px; border-radius: 4px; }
   .msgMeta button:hover { background: var(--hover); color: var(--text); }
-  #inputBar { display: flex; padding: 16px; border-top: 1px solid var(--border); gap: 8px; }
+  #inputBar { 
+    display: flex; 
+    align-items: center; /* 強制所有元件垂直居中 */
+    padding: 16px; 
+    border-top: 1px solid var(--border); 
+    gap: 8px; 
+  }
   #uploadBtn { 
-    width: 42px; 
-    height: 42px; 
+    width: 42px !important; 
+    height: 42px !important; 
+    min-width: 42px !important; /* 避免被 flex 擠壓到寬度變 0 */
     padding: 0; 
     border: 1px solid var(--input-border); 
     border-radius: 8px; 
@@ -85,11 +92,10 @@
     color: var(--text); 
     cursor: pointer; 
     font-size: 18px; 
-    display: inline-flex; 
+    display: flex !important; 
     align-items: center; 
     justify-content: center; 
     flex-shrink: 0; 
-    align-self: flex-end;
   }
   #uploadBtn:hover { background: var(--hover); }
  #inputBox { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--input-border); background: var(--bg); color: var(--text); font-size: 14px; resize: none; max-height: 160px; overflow-y: auto; font-family: inherit; }
