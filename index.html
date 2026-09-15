@@ -74,8 +74,31 @@
   .msgMeta { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 11px; color: var(--text-light); }
   .msgMeta button { border: none; background: none; cursor: pointer; color: var(--text-light); font-size: 12px; padding: 2px 4px; border-radius: 4px; }
   .msgMeta button:hover { background: var(--hover); color: var(--text); }
-  #inputBar { display: flex; padding: 16px; border-top: 1px solid var(--border); gap: 8px; }
-  #inputBox { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--input-border); background: var(--bg); color: var(--text); font-size: 14px; resize: none; max-height: 160px; overflow-y: auto; font-family: inherit; }
+  #inputBar { 
+  display: flex !important; 
+  align-items: center !important; 
+  padding: 16px; 
+  border-top: 1px solid var(--border); 
+  gap: 8px; 
+}
+#uploadBtn { 
+  width: 42px !important; 
+  height: 42px !important; 
+  min-width: 42px !important; 
+  padding: 0; 
+  border: 1px solid var(--input-border); 
+  border-radius: 8px; 
+  background: var(--bg); 
+  color: var(--text); 
+  cursor: pointer; 
+  font-size: 18px; 
+  display: flex !important; 
+  align-items: center; 
+  justify-content: center; 
+  flex-shrink: 0 !important; 
+}
+#uploadBtn:hover { background: var(--hover); }
+ #inputBox { flex: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--input-border); background: var(--bg); color: var(--text); font-size: 14px; resize: none; max-height: 160px; overflow-y: auto; font-family: inherit; }
   #sendBtn { padding: 0 20px; border: none; border-radius: 8px; background: var(--accent); color: white; cursor: pointer; }
 </style>
 </head>
@@ -101,10 +124,12 @@
     </select>
   </div>
   <div id="messages"></div>
-  <div id="inputBar">
-    <textarea id="inputBox" rows="1" placeholder="輸入你的問題..."></textarea>
-    <button id="sendBtn" onclick="sendMessage()">送出</button>
-  </div>
+<div id="inputBar">
+  <input type="file" id="fileInput" style="display: none !important;" onchange="handleFileUpload(event)">
+  <button type="button" id="uploadBtn" onclick="document.getElementById('fileInput').click()" title="上傳檔案">📎</button>
+  <textarea id="inputBox" rows="1" placeholder="輸入你的問題..."></textarea>
+  <button type="button" id="sendBtn" onclick="sendMessage()">送出</button>
+</div>
 </div>
 
 <script>
@@ -369,7 +394,11 @@ function typewriterInto(contentEl, fullText, onDone) {
 // 💡 背景非同步請求 AI 自動生成 3~5 字標題
 async function fetchAutoTitle(conv, userQuery, aiAnswer) {
   try {
-    console.log('🚀 開始請求生成標題...', { userQuery, aiAnswer });
+    // 防護：若 userQuery 太長（例如檔案內容），截斷前 100 字傳給後端生成標題
+    const cleanQuery = (userQuery || '').slice(0, 100);
+    const cleanAnswer = (aiAnswer || '').slice(0, 200);
+
+    console.log('🚀 開始請求生成標題...', { cleanQuery });
     const res = await fetch(WORKER_URL, {
       method: 'POST',
       headers: {
@@ -378,8 +407,8 @@ async function fetchAutoTitle(conv, userQuery, aiAnswer) {
       },
       body: JSON.stringify({
         action: 'generateTitle',
-        query: userQuery,
-        lastAiResponse: aiAnswer
+        query: cleanQuery,
+        lastAiResponse: cleanAnswer
       })
     });
     const data = await res.json();
@@ -401,13 +430,45 @@ inputBox.addEventListener('input', () => {
   inputBox.style.height = Math.min(inputBox.scrollHeight, 160) + 'px';
 });
 
+let attachedFileContent = '';
+let attachedFileName = '';
+
+function handleFileUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const MAX_SIZE = 10 * 1024 * 1024;
+  if (file.size > MAX_SIZE) {
+    alert(`檔案太大囉！(${Math.round(file.size / (1024 * 1024))} MB)\n為了免費配額安全，請上傳小於 10MB 的檔案。`);
+    event.target.value = '';
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    attachedFileContent = e.target.result;
+    attachedFileName = file.name;
+    alert(`已載入檔案：${file.name} (${Math.round(file.size / 1024)} KB)`);
+  };
+
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
 async function sendMessage(overrideText) {
-  const text = (overrideText !== undefined ? overrideText : inputBox.value.trim());
+  let text = (overrideText !== undefined ? overrideText : inputBox.value.trim());
+
+  if (attachedFileContent) {
+    text = `${text}\n\n【附加檔案: ${attachedFileName}】\n\`\`\`\n${attachedFileContent}\n\`\`\``;
+    attachedFileContent = '';
+    attachedFileName = '';
+  }
   if (!text) return;
   let conv = getActiveConv();
   if (!conv) { newConversation(); conv = getActiveConv(); }
 
   const isFirstMessage = conv.messages.length === 0;
+  const rawText = overrideText !== undefined ? overrideText : inputBox.value.trim(); // 保存未附加檔案的純文字
 
   conv.lastQuery = text;
   conv.messages.push({ role: 'user', text, time: Date.now() });
@@ -452,7 +513,7 @@ async function sendMessage(overrideText) {
 
         // 💡 第一輪對話完成後，背景請求生成精煉標題
         if (isFirstMessage) {
-          fetchAutoTitle(conv, text, data.answer);
+          fetchAutoTitle(conv, rawText, data.answer);
         }
       });
     } else {
