@@ -417,8 +417,39 @@ inputBox.addEventListener('input', () => {
   inputBox.style.height = Math.min(inputBox.scrollHeight, 160) + 'px';
 });
 
+let attachedFileContent = '';
+let attachedFileName = '';
+
+function handleFileUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const MAX_SIZE = 10 * 1024 * 1024;
+  if (file.size > MAX_SIZE) {
+    alert(`檔案太大囉！(${Math.round(file.size / (1024 * 1024))} MB)\n為了免費配額安全，請上傳小於 10MB 的檔案。`);
+    event.target.value = '';
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    attachedFileContent = e.target.result;
+    attachedFileName = file.name;
+    alert(`已載入檔案：${file.name} (${Math.round(file.size / 1024)} KB)`);
+  };
+
+  reader.readAsText(file);
+  event.target.value = '';
+}
+
 async function sendMessage(overrideText) {
-  const text = (overrideText !== undefined ? overrideText : inputBox.value.trim());
+  let text = (overrideText !== undefined ? overrideText : inputBox.value.trim());
+
+  if (attachedFileContent) {
+    text = `${text}\n\n【附加檔案: ${attachedFileName}】\n\`\`\`\n${attachedFileContent}\n\`\`\``;
+    attachedFileContent = '';
+    attachedFileName = '';
+  }
   if (!text) return;
   let conv = getActiveConv();
   if (!conv) { newConversation(); conv = getActiveConv(); }
